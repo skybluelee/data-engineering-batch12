@@ -75,6 +75,18 @@ b9c06238f108   apache/airflow:2.5.1   "/usr/bin/dumb-init …"   11 minutes ago 
 print_goodbye
 print_hello
 ```
+3. Root로 로그인하고 싶다면 `docker exec -u 0 -it b9c06238f108 sh`를 실행한다.
+
+예를 들어 "No module named 'MySQLdb'"에러가 난다면 root로 로그인해서 아래 명령들을 실행한다
+```
+sudo apt-get update
+sudo apt-get install default-libmysqlclient-dev build-essential
+```
+
+다음으로 airflow 유저로 로그인해서 다음 명령을 실행한다
+```
+pip install mysqlclient
+```
 
 ### Shutting Down Local Airflow Services
 1. `ctrl+c`
