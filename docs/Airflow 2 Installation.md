@@ -14,7 +14,7 @@
 sudo apt-get update 
 wget https://bootstrap.pypa.io/get-pip.py
 sudo python3 get-pip.py
-pip3 install pyopenssl --upgrade
+sudo pip3 install pyopenssl --upgrade
 sudo apt-get install -y python3-pip
 ```
 
