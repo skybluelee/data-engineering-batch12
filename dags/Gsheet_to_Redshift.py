@@ -75,9 +75,9 @@ def copy_to_s3(**context):
 dag = DAG(
     dag_id = 'Gsheet_to_Redshift',
     start_date = datetime(2021,11,27), # 날짜가 미래인 경우 실행이 안됨
-    schedule_interval = '0 9 * * *',  # 적당히 조절
+    schedule = '0 9 * * *',  # 적당히 조절
     max_active_runs = 1,
-    concurrency = 2,
+    max_active_tasks = 2,
     catchup = False,
     default_args = {
         'retries': 1,
@@ -99,7 +99,6 @@ for sheet in sheets:
         task_id = 'download_{}_in_gsheet'.format(sheet["table"]),
         python_callable = download_tab_in_gsheet,
         params = sheet,
-        provide_context=True,
         dag = dag)
 
     copy_to_s3 = PythonOperator(
@@ -108,7 +107,6 @@ for sheet in sheets:
         params = {
             "table": sheet["table"]
         },
-        provide_context=True,
         dag = dag)
 
     run_copy_sql = S3ToRedshiftOperator(
@@ -118,7 +116,7 @@ for sheet in sheets:
         schema = sheet["schema"],
         table = sheet["table"],
         copy_options=['csv', 'IGNOREHEADER 1'],
-        truncate_table = True,
+        method = 'REPLACE',
         redshift_conn_id = "redshift_dev_db",
         dag = dag
     )
