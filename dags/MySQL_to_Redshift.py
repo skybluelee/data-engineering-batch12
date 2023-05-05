@@ -18,14 +18,14 @@ dag = DAG(
     start_date = datetime(2022,8,24), # 날짜가 미래인 경우 실행이 안됨
     schedule = '0 9 * * *',  # 적당히 조절
     max_active_runs = 1,
-    catchup = False,
+    catchup = True,
     default_args = {
         'retries': 1,
         'retry_delay': timedelta(minutes=3),
     }
 )
 
-schema = "keeyong"
+schema = "kusdk"
 table = "nps"
 s3_bucket = "grepp-data-engineering"
 s3_key = schema + "-" + table
@@ -57,3 +57,4 @@ s3_to_redshift_nps = S3ToRedshiftOperator(
 )
 
 mysql_to_s3_nps >> s3_to_redshift_nps
+

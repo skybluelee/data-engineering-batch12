@@ -12,6 +12,7 @@ import logging
 import psycopg2
 import json
 
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 def get_Redshift_connection():
     # autocommit is False by default
@@ -79,18 +80,8 @@ def etl(**context):
         cur.execute("ROLLBACK;")
         raise
 
-"""
-CREATE TABLE kusdk.weather_forecast (
-    date date,
-    temp float,
-    min_temp float,
-    max_temp float,
-    created_date timestamp default GETDATE()
-);
-"""
-
 dag = DAG(
-    dag_id = 'Weather_to_Redshift_v2',
+    dag_id = 'TriggerDagRunOperator',
     start_date = datetime(2022,8,24), # 날짜가 미래인 경우 실행이 안됨
     schedule = '0 4 * * *',  # 적당히 조절
     max_active_runs = 1,
@@ -101,6 +92,18 @@ dag = DAG(
     }
 )
 
+trigger_B = TriggerDagRunOperator(
+    task_id="trigger_dag_run_test",
+    trigger_dag_id="Gsheet_to_Redshift",
+    # DAG B에 넘기고 싶은 정보. DAG B에서는 Jinja 템플릿(dag_run.conf["path"])으로 접근 가능.
+    # DAG B PythonOperator(**context)에서라면 kwargs['dag_run'].conf.get('conf')
+    conf={ 'path': '/opt/ml/conf' },
+    # Jinja 템플릿을 통해 DAG A의 execution_date을 패스
+    execution_date="{{ ds }}",
+    reset_dag_run=True, # True일 경우 해당 날짜가 이미 실행되었더라는 다시 재실행
+    wait_for_completion=True, # DAG B가 끝날 때까지 기다릴지 여부를 결정. 디폴트값은 False
+    dag = dag
+)
 etl = PythonOperator(
     task_id = 'etl',
     python_callable = etl,
@@ -109,8 +112,9 @@ etl = PythonOperator(
         "lat": 37.5665,
         "lon": 126.9780,
         "schema": "kusdk",
-        "table": "weather_forecast"
+        "table": "TriggerDagOperator"
     },
     dag = dag
 )
 
+trigger_B >> etl

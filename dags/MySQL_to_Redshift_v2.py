@@ -24,7 +24,7 @@ dag = DAG(
     }
 )
 
-schema = "keeyong"
+schema = "kusdk"
 table = "nps"
 s3_bucket = "grepp-data-engineering"
 s3_key = schema + "-" + table       # s3_key = schema + "/" + table
@@ -51,9 +51,11 @@ s3_to_redshift_nps = S3ToRedshiftOperator(
     table = table,
     copy_options=['csv'],
     redshift_conn_id = "redshift_dev_db",
+    aws_conn_id = "aws_conn_id",
     method = "UPSERT",
     upsert_keys = ["id", "created_at"],
     dag = dag
 )
 
 mysql_to_s3_nps >> s3_to_redshift_nps
+

@@ -1,11 +1,11 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
-from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.hooks.postgres_hook import PostgresHook
 
 from datetime import datetime
 from datetime import timedelta
-# from plugins import slack
+from plugins import slack
 
 import requests
 import logging
@@ -62,7 +62,7 @@ dag_second_assignment = DAG(
     default_args = {
         'retries': 1,
         'retry_delay': timedelta(minutes=3),
-        # 'on_failure_callback': slack.on_failure_callback,
+        'on_failure_callback': slack.on_failure_callback,
     }
 )
 
@@ -86,9 +86,10 @@ load = PythonOperator(
     task_id = 'load',
     python_callable = load,
     params = {
-        'schema': 'keeyong',   ## 자신의 스키마로 변경
-        'table': 'name_gender'
+        'schema': 'kusdk',   ## 자신의 스키마로 변경
+        'table': 'name_gender2'
     },
     dag = dag_second_assignment)
 
 extract >> transform >> load
+

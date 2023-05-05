@@ -87,9 +87,9 @@ dag = DAG(
 
 sheets = [
     {
-        "url": "https://docs.google.com/spreadsheets/d/1hW-_16OqgctX-_lXBa0VSmQAs98uUnmfOqvDYYjuE50/",
-        "tab": "Test",
-        "schema": "keeyong",
+        "url": "https://docs.google.com/spreadsheets/d/12rAcYGF_jSCwlq4_i43pYWUVuwOiZTnWtLiFO3h-eIM/edit#gid=0",
+        "tab": "one",
+        "schema": "kusdk",
         "table": "spreadsheet_copy_testing"
     }
 ]
@@ -115,7 +115,7 @@ for sheet in sheets:
         s3_key = sheet["table"],
         schema = sheet["schema"],
         table = sheet["table"],
-        copy_options=['csv', 'IGNOREHEADER 1'],
+        copy_options=['csv', 'MAXERROR 5', 'IGNOREHEADER 1'],
         method = 'REPLACE',
         redshift_conn_id = "redshift_dev_db",
         dag = dag

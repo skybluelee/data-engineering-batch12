@@ -12,6 +12,7 @@ import logging
 import psycopg2
 import json
 
+from airflow.sensors.external_task import ExternalTaskSensor
 
 def get_Redshift_connection():
     # autocommit is False by default
@@ -20,16 +21,18 @@ def get_Redshift_connection():
 
 
 def etl(**context):
+    schema = context["params"]["schema"]
+    table = context["params"]["table"]
+    lat = context["params"]["lat"]
+    lon = context["params"]["lon"]
     # api_key = Variable.get("open_weather_api_key")
     api_key = "2d61882f7e74a4787667e1de1e8004b1"
-    # 서울의 위도/경도
-    lat = 37.5665
-    lon = 126.9780
 
     # https://openweathermap.org/api/one-call-api
     url = f"https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={api_key}&units=metric&exclude=current,minutely,hourly,alerts"
     response = requests.get(url)
     data = json.loads(response.text)
+
     """
     {'dt': 1622948400, 'sunrise': 1622923873, 'sunset': 1622976631, 'moonrise': 1622915520, 'moonset': 1622962620, 'moon_phase': 0.87, 'temp': {'day': 26.59, 'min': 15.67, 'max': 28.11, 'night': 22.68, 'eve': 26.29, 'morn': 15.67}, 'feels_like': {'day': 26.59, 'night': 22.2, 'eve': 26.29, 'morn': 15.36}, 'pressure': 1003, 'humidity': 30, 'dew_point': 7.56, 'wind_speed': 4.05, 'wind_deg': 250, 'wind_gust': 9.2, 'weather': [{'id': 802, 'main': 'Clouds', 'description': 'scattered clouds', 'icon': '03d'}], 'clouds': 44, 'pop': 0, 'uvi': 3}
     """
@@ -39,29 +42,58 @@ def etl(**context):
         ret.append("('{}',{},{},{})".format(day, d["temp"]["day"], d["temp"]["min"], d["temp"]["max"]))
 
     cur = get_Redshift_connection()
-    insert_sql = """DELETE FROM kusdk.weather_forecast;INSERT INTO kusdk.weather_forecast VALUES """ + ",".join(ret)
+    
+    # 임시 테이블 생성
+    create_sql = f"""DROP TABLE IF EXISTS {schema}.temp_{table};
+    CREATE TABLE {schema}.temp_{table} (LIKE {schema}.{table} INCLUDING DEFAULTS);INSERT INTO {schema}.temp_{table} SELECT * FROM {schema}.{table};"""
+    logging.info(create_sql)
+    try:
+        cur.execute(create_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute("ROLLBACK;")
+        raise
+
+    # 임시 테이블 데이터 입력
+    insert_sql = f"INSERT INTO {schema}.temp_{table} VALUES " + ",".join(ret)
     logging.info(insert_sql)
     try:
         cur.execute(insert_sql)
-        cur.execute("Commit;")
+        cur.execute("COMMIT;")
     except Exception as e:
-        cur.execute("Rollback;")
+        cur.execute("ROLLBACK;")
+        raise
+
+    # 기존 테이블 대체
+    alter_sql = f"""DELETE FROM {schema}.{table};
+      INSERT INTO {schema}.{table}
+      SELECT date, temp, min_temp, max_temp FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY date ORDER BY created_date DESC) seq
+        FROM {schema}.temp_{table}
+      )
+      WHERE seq = 1;"""
+    logging.info(alter_sql)
+    try:
+        cur.execute(alter_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute("ROLLBACK;")
         raise
 
 """
-CREATE TABLE kusdk.weather_forecast (
+CREATE TABLE kusdk.ExternalTaskSensor (
     date date,
     temp float,
     min_temp float,
     max_temp float,
-    updated_date timestamp default GETDATE()
+    created_date timestamp default GETDATE()
 );
 """
 
 dag = DAG(
-    dag_id = 'Weather_to_Redshift',
+    dag_id = 'ExternalTaskSensor',
     start_date = datetime(2022,8,24), # 날짜가 미래인 경우 실행이 안됨
-    schedule = '0 2 * * *',  # 적당히 조절
+    schedule = '0 4 * * *',  # 적당히 조절
     max_active_runs = 1,
     catchup = False,
     default_args = {
@@ -70,9 +102,27 @@ dag = DAG(
     }
 )
 
-etl = PythonOperator(
-    task_id = 'etl',
-    python_callable = etl,
+waiting_for_end_of_dag_a = ExternalTaskSensor(
+    task_id='waiting_for_end_of_dag_a',
+    external_dag_id='Gsheet_to_Redshift',
+    external_task_id='run_copy_sql_spreadsheet_copy_testing',
+    timeout=5*60,
+    # execution_date_fn=lambda x: x,
+    mode='reschedule',
     dag = dag
 )
 
+etl = PythonOperator(
+    task_id = 'etl',
+    python_callable = etl,
+    # 서울의 위도/경도
+    params = {
+        "lat": 37.5665,
+        "lon": 126.9780,
+        "schema": "kusdk",
+        "table": "ExternalTaskSensor"
+    },
+    dag = dag
+)
+
+waiting_for_end_of_dag_a >> etl

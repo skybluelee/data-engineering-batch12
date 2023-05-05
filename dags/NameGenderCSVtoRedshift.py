@@ -7,8 +7,8 @@ import psycopg2
 
 def get_Redshift_connection():
     host = "learnde.cduaw970ssvt.ap-northeast-2.redshift.amazonaws.com"
-    user = "keeyong"  # 본인 ID 사용
-    password = "..."  # 본인 Password 사용
+    user = "kusdk"  # 본인 ID 사용
+    password = "Kusdk!11"  # 본인 Password 사용
     port = 5439
     dbname = "dev"
     conn = psycopg2.connect(f"dbname={dbname} user={user} host={host} password={password} port={port}")
@@ -34,11 +34,11 @@ def transform(text):
 def load(lines):
     logging.info("load started")
     cur = get_Redshift_connection()
-    sql = "BEGIN;DELETE FROM keeyong.name_gender;"
+    sql = "BEGIN;DELETE FROM kusdk.name_gender;"
     for l in lines:
         if l != '':
             (name, gender) = l.split(",")
-            sql += f"INSERT INTO keeyong.name_gender VALUES ('{name}', '{gender}');"
+            sql += f"INSERT INTO kusdk.name_gender VALUES ('{name}', '{gender}');"
     sql += "END;"
     cur.execute(sql)
     logging.info(sql)
@@ -62,3 +62,4 @@ task = PythonOperator(
 	task_id = 'perform_etl',
 	python_callable = etl,
 	dag = dag_second_assignment)
+
